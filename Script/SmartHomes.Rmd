@@ -142,11 +142,7 @@ str(newDF)
 
 newDF$year <- year(newDF$DateTime)
 ```
-Review your primary data frame. Was the year attribute created? What values are found in the year attribute? 
-```{r}
-str(newDF)
-summary(newDF)
-```
+
 ####6.1 Attributes for quarter, month, week, weekday, day, hour and minute
 ```{r}
 newDF$quarter <- quarter(newDF$DateTime)
