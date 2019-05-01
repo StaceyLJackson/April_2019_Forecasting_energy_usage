@@ -1,0 +1,486 @@
+---
+title: "Smart_homes"
+author: "Stacey Jackson"
+date: "16/04/2019"
+output: word_document
+---
+####1. INSTALL PACKAGES
+```{r}
+
+library(RMySQL)
+library(dplyr)
+
+
+library(lubridate)
+
+library(ggplot2)
+
+library(tidyr)
+```
+
+
+
+```{r}
+con = dbConnect(MySQL(), user='deepAnalytics', password='Sqltask1234!', dbname='dataanalytics2018', host='data-analytics-2018.cbrosir2cswx.us-east-1.rds.amazonaws.com')
+```
+
+Upload each year and list attributes in each table
+```{r}
+yr_2006 <- dbGetQuery(con, "SELECT * FROM yr_2006")
+dbListFields(con,"yr_2006")
+
+
+```
+####2. DATA FOR EACH SUB-METER
+####2.1 Download date, time and the sub-metering attributes for each sub-meter
+```{r}
+yr_2006SELECT <- dbGetQuery(con, "SELECT Date, Time, Global_active_power, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2006")
+yr_2007SELECT <- dbGetQuery(con, "SELECT Date, Time, Global_active_power, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2007")
+yr_2008SELECT <- dbGetQuery(con, "SELECT Date, Time, Global_active_power, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2008")
+yr_2009SELECT <- dbGetQuery(con, "SELECT Date, Time, Global_active_power, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2009")
+yr_2010SELECT <- dbGetQuery(con, "SELECT Date, Time, Global_active_power, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2010")
+```
+####3. INVESTIGATE THE DATA
+####3.1 2006
+```{r}
+str(yr_2006SELECT)
+summary(yr_2006SELECT)
+head(yr_2006SELECT)
+tail(yr_2006SELECT)
+```
+####3.2 2007
+```{r}
+str(yr_2007SELECT)
+summary(yr_2007SELECT)
+head(yr_2007SELECT)
+tail(yr_2007SELECT)
+```
+####3.3 2008
+```{r}
+str(yr_2008SELECT)
+summary(yr_2008SELECT)
+head(yr_2008SELECT)
+tail(yr_2008SELECT)
+```
+####3.4 2009
+```{r}
+str(yr_2009SELECT)
+summary(yr_2009SELECT)
+head(yr_2009SELECT)
+tail(yr_2009SELECT)
+```
+####3.5 2010
+```{r}
+str(yr_2010SELECT)
+summary(yr_2010SELECT)
+head(yr_2010SELECT)
+tail(yr_2010SELECT)
+```
+####4. CREATE ONE DATAFRAME - ONLY YEARS THAT ARE COMPLETE
+```{r}
+newDF <- bind_rows(yr_2007SELECT, yr_2008SELECT, yr_2009SELECT)
+```
+####4.1 Investigate the new dataframe and rename columns
+```{r}
+
+names(newDF)[4] <- "Kitchen"
+names(newDF)[5] <- "Laundry_Room"
+names(newDF)[6] <- "Heating_Water"
+
+str(newDF)
+summary(newDF)
+head(newDF)
+tail(newDF)
+```
+####4.2 Change Sub-meters' readings to kW/hr
+```{r}
+newDF$Kitchen <- newDF$Kitchen/1000 
+newDF$Laundry_Room <- newDF$Laundry_Room/1000 
+newDF$Heating_Water <- newDF$Heating_Water/1000 
+
+head(newDF)
+
+```
+####4.3 Create Rest_of_House to cover the rest of the house
+```{r}
+newDF$Rest_of_House<-newDF$Global_active_power/60-(newDF$Kitchen+newDF$Laundry_Room+newDF$Heating_Water)
+
+head(newDF)
+```
+
+####5.TIME
+####5.1 Combine Date & Time attribute values in a new attribute column
+```{r}
+newDF <-cbind(newDF,paste(newDF$Date,newDF$Time), stringsAsFactors=FALSE)
+```
+####5.2 Give the new attribute in the 8th column a header name 
+```{r}
+colnames(newDF)[8] <-"DateTime"
+```
+####5.3 Move the DateTime attribute within the dataset
+```{r}
+newDF <- newDF[,c(ncol(newDF), 1:(ncol(newDF)-1))]
+head(newDF)
+tail(newDF)
+```
+####5.4 POSIXct conversion
+```{r}
+## Convert DateTime from POSIXlt to POSIXct 
+newDF$DateTime <- ymd_hms(newDF$DateTime)
+newDF$Time<-hms(newDF$Time)
+newDF$Date<-ymd(newDF$Date)
+
+## Add the time zone
+#attr(newDF$DateTime, "tzone") <- "Europe/Paris"
+
+## Inspect the data types
+str(newDF)
+```
+####6.YEAR 
+```{r}
+## Create "year" attribute with lubridate
+
+newDF$year <- year(newDF$DateTime)
+```
+Review your primary data frame. Was the year attribute created? What values are found in the year attribute? 
+```{r}
+str(newDF)
+summary(newDF)
+```
+####6.1 Attributes for quarter, month, week, weekday, day, hour and minute
+```{r}
+newDF$quarter <- quarter(newDF$DateTime)
+newDF$month <- month(newDF$DateTime)
+newDF$week <- week(newDF$DateTime)
+newDF$weekdays <- weekdays(newDF$DateTime)
+newDF$day <- day(newDF$DateTime)
+newDF$hour <- hour(newDF$DateTime)
+newDF$minute <- minute(newDF$DateTime)
+
+str(newDF)
+summary(newDF)
+head(newDF)
+tail(newDF)
+```
+#### 7. LOOK FOR MISSING DATES
+```{r}
+
+newDF$Date2 <- as.Date(newDF$Date)
+date_range <-seq.Date(min(newDF$Date2), max(newDF$Date2), by="day")
+date_range[!date_range %in% newDF$Date2] 
+
+
+```
+
+
+####8. SUMMARY STATISTICS
+####totals for each
+```{r}
+summary(newDF)
+
+sum(newDF$Kitchen)
+sum(newDF$Laundry_Room)
+sum(newDF$Heating_Water)
+sum(newDF$Rest_of_House)
+
+
+
+```
+####8.1 sub-meter1
+Minimum = 0
+Maxiumum = 0.082000
+Mean = 0.001159
+Median = 0
+Standard deviation = 0.006288272
+1st quartile = 0
+3rd quartile = 0
+```{r}
+sd(newDF$Kitchen)
+
+
+plot(newDF$Kitchen)
+boxplot(newDF$Kitchen)
+
+p <- ggplot(data=newDF, mapping=aes(x=Kitchen))
+p + geom_histogram(bins=8)
+
+p <- ggplot(data=newDF, mapping=aes(x=quarter, y=Kitchen))
+p + geom_bar(stat="identity")
+
+p <- ggplot(data = newDF, mapping = aes(x = month, y = Kitchen, color=Kitchen))
+p + geom_smooth()
+
+p <-  ggplot(data=newDF, mapping= aes(x = quarter, y=Kitchen, colour=year)) 
+p + geom_bar(stat="identity")
+
+p <- ggplot(data = newDF, mapping = aes(x = weekdays, y = Kitchen, fill=Kitchen))
+p + geom_bar(stat="identity")
+```
+####8.2 sub-meter2
+Minimum = 0
+Maxiumum = 0.078000
+Median = 0
+Mean = 0.001343
+Standard deviation = 0.005972199
+1st quartile = 0
+3rd quartile = 0.001000
+
+```{r}
+sd(newDF$Laundry_Room)
+plot(newDF$Laundry_Room)
+boxplot(newDF$Laundry_Room)
+
+p <- ggplot(data=newDF, mapping=aes(x=Laundry_Room))
+p + geom_histogram(bins=8)
+
+p <- ggplot(data=newDF, mapping=aes(x=quarter, y=Laundry_Room))
+p + geom_bar(stat="identity")
+
+p <- ggplot(data = newDF, mapping = aes(x = month, y = Laundry_Room, color=Laundry_Room))
+p + geom_smooth()
+
+p <-  ggplot(data=newDF, mapping= aes(x = quarter, y=Laundry_Room, colour=year)) 
+p + geom_bar(stat="identity")
+
+p <-  ggplot(data=newDF, mapping= aes(x = year, y=Laundry_Room, colour=year)) 
+p + geom_bar(stat="identity")
+```
+####8.3 sub-meter3
+Minimum = 0
+Maxiumum = 0.031000
+Median = 0.001000
+Mean = 0.006216
+Standard deviation = 0.008341281
+1st quartile = 0
+3rd quartile = 0.017000
+
+```{r}
+sd(newDF$Heating_Water)
+plot(newDF$Heating_Water)
+boxplot(newDF$Heating_Water)
+
+p <- ggplot(data=newDF, mapping=aes(x=Heating_Water))
+p + geom_histogram(bins=8)
+
+p <- ggplot(data=newDF, mapping=aes(x=quarter, y=Heating_Water))
+p + geom_bar(stat="identity")
+
+p <- ggplot(data = newDF, mapping = aes(x = month, y = Heating_Water, color=Heating_Water))
+p + geom_smooth()
+
+p <-  ggplot(data=newDF, mapping= aes(x = quarter, y=Heating_Water, colour=year)) 
+p + geom_bar(stat="identity") 
+  
+```
+####8.4 sub-meter4
+Minimum = 
+Maxiumum = 
+Median = 
+Mean = 
+Standard deviation = 
+1st quartile = 
+3rd quartile = 
+
+```{r}
+sd(newDF$Rest_of_House)
+plot(newDF$Rest_of_House)
+boxplot(newDF$Rest_of_House)
+
+p <- ggplot(data=newDF, mapping=aes(x=Rest_of_House))
+p + geom_histogram(bins=8)
+
+p <- ggplot(data=newDF, mapping=aes(x=quarter, y=Rest_of_House))
+p + geom_bar(stat="identity")
+
+p <- ggplot(data = newDF, mapping = aes(x = month, y = Rest_of_House, color=Rest_of_House))
+p + geom_smooth()
+
+p <-  ggplot(data=newDF, mapping= aes(x = quarter, y=Rest_of_House, colour=year)) 
+p + geom_bar(stat="identity")
+```
+
+####8.5 All together
+```{r}
+
+
+
+##By year
+newDF %>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(mapping= aes(x = year, y=value, colour=key)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~key,ncol=1)
+
+##By quarter
+newDF %>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(mapping= aes(x = quarter, y=value, fill=key)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~key,ncol=1)
+
+##By month
+newDF%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = month, y = value, color=key))+
+  geom_smooth() +
+  facet_wrap(~key,ncol=1)
+
+## By day of the week
+newDF%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = weekdays, y = value, color=key))+
+  geom_bar(stat="identity") +
+  facet_wrap(~key,ncol=1)
+
+## By hour of day week
+newDF%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = hour, y = value, color=key))+
+  geom_smooth() +
+  facet_wrap(~key,ncol=1)
+
+newDF%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = hour, y = value, color=key))+
+  geom_smooth() +
+  coord_flip() + 
+  facet_grid(~key)
+
+newDF%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = hour, y = value, color=key))+
+  geom_bar(stat="identity") +
+  coord_flip() + 
+  facet_grid(~key)
+
+newDF%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = weekdays, y = value, color=key))+
+  geom_bar(stat="identity") +
+  coord_flip() + 
+  facet_grid(~key)
+
+
+```
+####9. PRICES
+```{r}
+newDF$rate<-ifelse (newDF$Time >=hms("06:31:00") & newDF$Time<=hms("22:29:00"), 0.00263, 0.0021)
+
+newDF$price<-newDF$rate*newDF$Global_active_power
+
+
+#15 Sept 2009
+newDF %>% 
+  filter(Date==as.Date("2009-09-15")) %>% 
+  summarise(sum(price))
+
+#Total Jan-Aug 2009
+newDF %>% 
+  filter(between(Date, as.Date("2009-01-01"), as.Date("2009-08-31")))%>%
+  summarise(sum(price))
+
+#Total 1-14 Sept 2009
+newDF %>% 
+  filter(between(Date, as.Date("2009-09-01"), as.Date("2009-09-14")))%>%
+  summarise(sum(price))
+
+```
+####10.Plots for mock-up
+```{r}
+#Water/heating 15 September 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day==15)%>%
+  gather(key,value, Heating_Water) %>%
+  ggplot(aes(x = hour, y = value,fill=key))+
+  geom_bar(stat="identity")
+  
+
+#Kitchen September 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day<15)%>%
+  gather(key,value, Heating_Water) %>%
+  ggplot(aes(x = day, y = value, color=key))+
+  geom_bar(stat="identity") 
+
+#Kitchen Up to Sept 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month<9)%>%
+  gather(key,value, Heating_Water) %>%
+  ggplot(aes(x = month, y = value, color=key))+
+  geom_bar(stat="identity") 
+
+#Overview Up to Sept 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month<9)%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = month, y = value, color=key))+
+  geom_bar(stat="identity")
+
+#Overview 15 September 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day<15)%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = day, y = value, color=key))+
+  geom_bar(stat="identity") 
+
+
+#Pie chart 1-14 Sept 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day<15)%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = "", y = value, fill=key))+
+  geom_bar(stat="identity", width=1)+
+  coord_polar("y", start=0)
+
+#Pie chart Jan-Aug 2009
+newDF%>%
+  filter(between(Date, as.Date("2009-01-01"), as.Date("2009-08-31")))%>%
+  summarise(Kitchen=sum(Kitchen), Laundry_Room=sum(Laundry_Room), Heating_Water=sum(Heating_Water), Rest_of_House=sum(Rest_of_House))%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = "", y = value, fill=key))+
+  geom_bar(stat="identity", width=1)+
+  coord_polar("y", start=0)
+
+#Pie chart 15 September 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day<15)%>%
+  summarise(Kitchen=sum(Kitchen), Laundry_Room=sum(Laundry_Room), Heating_Water=sum(Heating_Water), Rest_of_House=sum(Rest_of_House))%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = "", y = value, fill=key))+
+  geom_bar(stat="identity", width=1)+
+  coord_polar("y", start=0)
+
+#Pie chart 15 September 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day==15)%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = "", y = value, fill=key))+
+  geom_bar(stat="identity", width=1)+
+  coord_polar("y", start=0)
+
+#Overview 15 September 2009
+newDF%>%
+  filter(year==2009)%>%
+  filter(month==9)%>%
+  filter(day==15)%>%
+  gather(key,value, Kitchen, Laundry_Room, Heating_Water, Rest_of_House) %>%
+  ggplot(aes(x = hour, y = value, fill=key))+
+  geom_bar(stat="identity") 
+
+
+```
+
